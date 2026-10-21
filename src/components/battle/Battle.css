@@ -1,0 +1,84 @@
+.battle {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  cursor: none;
+}
+
+/* Center-locked TPS reticle */
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 15;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.crosshair::before {
+  left: 50%;
+  top: -6px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+}
+
+.crosshair::after {
+  left: 50%;
+  bottom: -6px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+}
+
+.game-over,
+.pause-menu {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 20;
+  cursor: default;
+}
+
+.game-over h2,
+.pause-menu h2 {
+  font-size: 2.5rem;
+  color: #ef4444;
+}
+
+.pause-menu h2 {
+  color: #e2e8f0;
+}
+
+.game-over button,
+.pause-menu button {
+  padding: 0.75rem 1.5rem;
+  background: #3b82f6;
+  color: white;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.pause-menu button:last-child {
+  background: #475569;
+}

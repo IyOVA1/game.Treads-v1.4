@@ -1,0 +1,177 @@
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  z-index: 10;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.hud-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.hud-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(8, 15, 28, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 0.35rem 0.7rem;
+  backdrop-filter: blur(6px);
+  min-width: 88px;
+}
+
+.hud-chip.gold {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.hud-chip .ico {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.hud-chip .lbl {
+  display: block;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.hud-chip strong {
+  font-size: 1.15rem;
+  color: #f8fafc;
+  line-height: 1.1;
+}
+
+.quit-btn {
+  pointer-events: auto;
+  margin-left: auto;
+  padding: 0.5rem 0.95rem;
+  background: rgba(51, 65, 85, 0.95);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.quit-btn:hover {
+  background: #475569;
+}
+
+.hud-warning {
+  align-self: center;
+  margin-top: 0.4rem;
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid #fbbf24;
+  color: #fde68a;
+  padding: 0.4rem 1.1rem;
+  border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.hud-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.bar {
+  width: min(320px, 70vw);
+  height: 24px;
+  background: rgba(8, 15, 28, 0.88);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.bar.shield {
+  border-color: rgba(56, 189, 248, 0.55);
+  height: 18px;
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.12s linear;
+}
+
+.bar span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px #000;
+  letter-spacing: 0.02em;
+}
+
+.hud-combat-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(8, 15, 28, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.pill .ico {
+  opacity: 0.9;
+}
+
+.pill small {
+  font-weight: 600;
+  color: #94a3b8;
+  margin-left: 0.15rem;
+}
+
+.pill.ammo.busy {
+  border-color: #fbbf24;
+  color: #fde68a;
+}
+
+.pill.ability.ready {
+  border-color: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+}
+
+.pill.ability .go {
+  color: #86efac;
+  font-weight: 800;
+}
+
+.controls-hint {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  background: rgba(8, 15, 28, 0.55);
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+}
