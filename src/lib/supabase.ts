@@ -1,12 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL as string;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+// Anon key is public by design (safe in frontend)
+const url = "https://eezncrhfwaptdvzidruy.supabase.co";
+const anon =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlem5jcmhmd2FwdGR2emlkcnV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1ODYyNjMsImV4cCI6MjEwODE2MjI2M30.UNjbinE4JRbTgd_LT_4gW9AUdK2a7EAyQ71CccOZy4E";
 
-if (!url || !anon) {
-  console.warn(
-    "[Treads] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — auth will fail."
-  );
-}
-
-export const supabase = createClient(url || "https://example.supabase.co", anon || "missing");
+export const supabase = createClient(url, anon, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
