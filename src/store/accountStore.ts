@@ -25,22 +25,38 @@ interface AccountState {
   isGuest: boolean;
   error: string;
   loading: boolean;
+  lastSaveError: string;
   setError: (msg: string) => void;
   init: () => Promise<void>;
   continueAsGuest: () => void;
   register: (email: string, password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  saveProgress: (data: Omit<CloudProgress, "updatedAt">) => void;
+  saveProgress: (data: Omit<CloudProgress, "updatedAt">) => Promise<void>;
   loadProgress: () => Promise<CloudProgress | null>;
 }
 
 const GUEST_KEY = "treads_progress_guest_v3";
 
+function cacheKey(userId: string) {
+  return `treads_progress_cache_v3:${userId}`;
+}
+
 function rowToProgress(row: Record<string, unknown>): CloudProgress {
+  const parts = row.unlocked_parts;
+  let unlockedParts: string[] = [];
+  if (Array.isArray(parts)) unlockedParts = parts as string[];
+  else if (typeof parts === "string") {
+    try {
+      unlockedParts = JSON.parse(parts);
+    } catch {
+      unlockedParts = [];
+    }
+  }
+
   return {
     coins: Number(row.coins ?? 2500),
-    unlockedParts: (row.unlocked_parts as string[]) ?? [],
+    unlockedParts,
     unlockedTier: Number(row.unlocked_tier ?? 1),
     highestWave: Number(row.highest_wave ?? 0),
     blueprint: {
@@ -52,6 +68,26 @@ function rowToProgress(row: Record<string, unknown>): CloudProgress {
   };
 }
 
+function writeCache(userId: string | null, data: CloudProgress) {
+  try {
+    const key = userId ? cacheKey(userId) : GUEST_KEY;
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function readCache(userId: string | null): CloudProgress | null {
+  try {
+    const key = userId ? cacheKey(userId) : GUEST_KEY;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as CloudProgress;
+  } catch {
+    return null;
+  }
+}
+
 export const useAccountStore = create<AccountState>((set, get) => ({
   authPhase: "boot",
   user: null,
@@ -59,6 +95,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   isGuest: false,
   error: "",
   loading: false,
+  lastSaveError: "",
 
   setError: (error) => set({ error }),
 
@@ -89,12 +126,8 @@ export const useAccountStore = create<AccountState>((set, get) => ({
           isGuest: false,
           authPhase: "play",
         });
-      } else if (!get().isGuest) {
-        // signed out
-        const phase = get().authPhase;
-        if (phase === "play") {
-          set({ user: null, displayName: "", authPhase: "auth" });
-        }
+      } else if (!get().isGuest && get().authPhase === "play") {
+        set({ user: null, displayName: "", authPhase: "auth" });
       }
     });
   },
@@ -131,10 +164,10 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       set({ error: "Sign up failed" });
       return false;
     }
-    // If email confirmation is required, session may be null
     if (!data.session) {
       set({
-        error: "Check your email to confirm, then log in. (Or disable email confirm in Supabase Auth settings for testing.)",
+        error:
+          "Check your email to confirm, then log in. (Or disable Confirm email in Supabase Auth settings.)",
         authPhase: "auth",
       });
       return false;
@@ -182,9 +215,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
 
   logout: async () => {
     const { isGuest } = get();
-    if (!isGuest) {
-      await supabase.auth.signOut();
-    }
+    if (!isGuest) await supabase.auth.signOut();
     set({
       user: null,
       displayName: "",
@@ -194,18 +225,16 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     });
   },
 
-  saveProgress: (data) => {
+  saveProgress: async (data) => {
     const { user, isGuest } = get();
-    if (isGuest || !user) {
-      try {
-        localStorage.setItem(GUEST_KEY, JSON.stringify({ ...data, updatedAt: Date.now() }));
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
+    const payload: CloudProgress = { ...data, updatedAt: Date.now() };
 
-    void supabase.from("progress").upsert(
+    // Always cache locally so refresh never loses data
+    writeCache(isGuest || !user ? null : user.id, payload);
+
+    if (isGuest || !user) return;
+
+    const { error } = await supabase.from("progress").upsert(
       {
         user_id: user.id,
         coins: data.coins,
@@ -219,18 +248,20 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       },
       { onConflict: "user_id" }
     );
+
+    if (error) {
+      console.error("[Treads] saveProgress failed:", error.message, error);
+      set({ lastSaveError: error.message });
+    } else {
+      set({ lastSaveError: "" });
+    }
   },
 
   loadProgress: async () => {
     const { user, isGuest } = get();
+
     if (isGuest || !user) {
-      try {
-        const raw = localStorage.getItem(GUEST_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw) as CloudProgress;
-      } catch {
-        return null;
-      }
+      return readCache(null);
     }
 
     const { data, error } = await supabase
@@ -239,7 +270,17 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error || !data) return null;
-    return rowToProgress(data as Record<string, unknown>);
+    if (error) {
+      console.error("[Treads] loadProgress failed:", error.message, error);
+      return readCache(user.id);
+    }
+
+    if (!data) {
+      return readCache(user.id);
+    }
+
+    const progress = rowToProgress(data as Record<string, unknown>);
+    writeCache(user.id, progress);
+    return progress;
   },
 }));

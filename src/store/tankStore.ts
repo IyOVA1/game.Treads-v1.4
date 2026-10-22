@@ -31,7 +31,7 @@ interface TankState {
 
   stats: ReturnType<typeof calculateStats>;
 
-  persist: () => void;
+  persist: () => Promise<void>;
   hydrateFromAccount: () => Promise<void>;
 }
 
@@ -142,21 +142,23 @@ export const useTankStore = create<TankState>((set, get) => ({
     set({ phase: "garage" });
   },
 
-  persist: () => {
+  persist: async () => {
     const s = get();
-    useAccountStore.getState().saveProgress(snapshot(s));
+    await useAccountStore.getState().saveProgress(snapshot(s));
   },
 
   hydrateFromAccount: async () => {
     const data = await useAccountStore.getState().loadProgress();
     if (!data) {
-      get().persist();
+      await get().persist();
       return;
     }
     const blueprint = data.blueprint || defaultBlueprint;
+    const parts =
+      data.unlockedParts?.length > 0 ? data.unlockedParts : [...STARTER_PARTS];
     set({
       coins: data.coins ?? 2500,
-      unlockedParts: data.unlockedParts?.length ? data.unlockedParts : [...STARTER_PARTS],
+      unlockedParts: parts,
       unlockedTier: data.unlockedTier ?? 1,
       highestWave: data.highestWave ?? 0,
       blueprint,
