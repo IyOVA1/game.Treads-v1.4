@@ -37,22 +37,39 @@ interface AccountState {
 }
 
 const GUEST_KEY = "treads_progress_guest_v3";
+const STARTER_PARTS = ["chassis_wasp", "engine_zephyr", "weapon_rattlejack"];
 
 function cacheKey(userId: string) {
   return `treads_progress_cache_v3:${userId}`;
 }
 
+function defaultProgress(): CloudProgress {
+  return {
+    coins: 2500,
+    unlockedParts: [...STARTER_PARTS],
+    unlockedTier: 1,
+    highestWave: 0,
+    blueprint: {
+      chassisId: "chassis_wasp",
+      engineId: "engine_zephyr",
+      weaponId: "weapon_rattlejack",
+    },
+    updatedAt: Date.now(),
+  };
+}
+
 function rowToProgress(row: Record<string, unknown>): CloudProgress {
   const parts = row.unlocked_parts;
   let unlockedParts: string[] = [];
-  if (Array.isArray(parts)) unlockedParts = parts as string[];
+  if (Array.isArray(parts)) unlockedParts = parts.map(String);
   else if (typeof parts === "string") {
     try {
       unlockedParts = JSON.parse(parts);
     } catch {
-      unlockedParts = [];
+      unlockedParts = [...STARTER_PARTS];
     }
   }
+  if (!unlockedParts.length) unlockedParts = [...STARTER_PARTS];
 
   return {
     coins: Number(row.coins ?? 2500),
@@ -73,7 +90,7 @@ function writeCache(userId: string | null, data: CloudProgress) {
     const key = userId ? cacheKey(userId) : GUEST_KEY;
     localStorage.setItem(key, JSON.stringify(data));
   } catch {
-    /* quota / private mode */
+    /* ignore */
   }
 }
 
@@ -86,6 +103,36 @@ function readCache(userId: string | null): CloudProgress | null {
   } catch {
     return null;
   }
+}
+
+function toRow(userId: string, data: Omit<CloudProgress, "updatedAt">) {
+  return {
+    user_id: userId,
+    coins: Math.round(data.coins),
+    unlocked_parts: data.unlockedParts,
+    unlocked_tier: Math.round(data.unlockedTier),
+    highest_wave: Math.round(data.highestWave),
+    chassis_id: data.blueprint.chassisId,
+    engine_id: data.blueprint.engineId,
+    weapon_id: data.blueprint.weaponId,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function pushToSupabase(userId: string, data: Omit<CloudProgress, "updatedAt">) {
+  const row = toRow(userId, data);
+
+  let { error } = await supabase.from("progress").upsert(row, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("[Treads] upsert failed:", error.message, error);
+    const ins = await supabase.from("progress").insert(row);
+    if (ins.error) {
+      console.error("[Treads] insert failed:", ins.error.message, ins.error);
+      return ins.error.message;
+    }
+  }
+  return null;
 }
 
 export const useAccountStore = create<AccountState>((set, get) => ({
@@ -114,7 +161,8 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       } else {
         set({ authPhase: "auth", user: null, isGuest: false });
       }
-    } catch {
+    } catch (e) {
+      console.error("[Treads] init failed", e);
       set({ authPhase: "auth", error: "Could not reach auth server" });
     }
 
@@ -179,6 +227,10 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       authPhase: "play",
       error: "",
     });
+    const seed = defaultProgress();
+    writeCache(data.user.id, seed);
+    const errMsg = await pushToSupabase(data.user.id, seed);
+    if (errMsg) set({ lastSaveError: errMsg });
     return true;
   },
 
@@ -229,32 +281,13 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     const { user, isGuest } = get();
     const payload: CloudProgress = { ...data, updatedAt: Date.now() };
 
-    // Always cache locally so refresh never loses data
     writeCache(isGuest || !user ? null : user.id, payload);
 
     if (isGuest || !user) return;
 
-    const { error } = await supabase.from("progress").upsert(
-      {
-        user_id: user.id,
-        coins: data.coins,
-        unlocked_parts: data.unlockedParts,
-        unlocked_tier: data.unlockedTier,
-        highest_wave: data.highestWave,
-        chassis_id: data.blueprint.chassisId,
-        engine_id: data.blueprint.engineId,
-        weapon_id: data.blueprint.weaponId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-
-    if (error) {
-      console.error("[Treads] saveProgress failed:", error.message, error);
-      set({ lastSaveError: error.message });
-    } else {
-      set({ lastSaveError: "" });
-    }
+    const errMsg = await pushToSupabase(user.id, data);
+    if (errMsg) set({ lastSaveError: errMsg });
+    else set({ lastSaveError: "" });
   },
 
   loadProgress: async () => {
@@ -276,7 +309,13 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     }
 
     if (!data) {
-      return readCache(user.id);
+      const cached = readCache(user.id);
+      if (cached) return cached;
+      const seed = defaultProgress();
+      writeCache(user.id, seed);
+      const errMsg = await pushToSupabase(user.id, seed);
+      if (errMsg) set({ lastSaveError: errMsg });
+      return seed;
     }
 
     const progress = rowToProgress(data as Record<string, unknown>);
